@@ -86,7 +86,7 @@ def transform_signal(text):
 
     entry_match = re.search(r'(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)', text)
     if entry_match:
-        entry = entry_match.group(1)
+        entry = f"{entry_match.group(1)} - {entry_match.group(2)}"
 
     sl_match = re.search(r'SL[/\s]*(?:invalid)?\s*(\d+(?:\.\d+)?)', text, re.IGNORECASE)
     if sl_match:
