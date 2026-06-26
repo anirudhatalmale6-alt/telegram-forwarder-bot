@@ -26,7 +26,7 @@ if (-not $pythonExists) {
     Write-Host "Python already installed." -ForegroundColor Green
 }
 
-# Download bot files
+# Download bot files (preserve session file)
 Write-Host "Downloading bot files..." -ForegroundColor Yellow
 $zipPath = "$env:TEMP\bot.zip"
 [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
@@ -42,16 +42,32 @@ Write-Host "Installing Telethon..." -ForegroundColor Yellow
 & python -m pip install telethon==1.37.0
 Write-Host "Telethon installed!" -ForegroundColor Green
 
+# Set up auto-start on boot
+Write-Host "Setting up auto-start..." -ForegroundColor Yellow
+$taskName = "TelegramForwarderBot"
+$existingTask = Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
+if ($existingTask) {
+    Unregister-ScheduledTask -TaskName $taskName -Confirm:$false
+}
+
+$pythonPath = (Get-Command python).Source
+$action = New-ScheduledTaskAction -Execute $pythonPath -Argument "bot.py" -WorkingDirectory $botDir
+$trigger = New-ScheduledTaskTrigger -AtStartup
+$settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1)
+$principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
+
+Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Settings $settings -Principal $principal -Description "Telegram Forwarding Bot"
+Write-Host "Auto-start configured!" -ForegroundColor Green
+
 Write-Host ""
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host "  SETUP COMPLETE!" -ForegroundColor Cyan
 Write-Host "========================================" -ForegroundColor Cyan
 Write-Host ""
 Write-Host "Bot is installed at: $botDir" -ForegroundColor White
+Write-Host "Auto-start: ON (runs when VPS boots)" -ForegroundColor White
 Write-Host ""
 Write-Host "Starting the bot now..." -ForegroundColor Yellow
-Write-Host "You will need to enter your PHONE NUMBER" -ForegroundColor Red
-Write-Host "and a VERIFICATION CODE from Telegram." -ForegroundColor Red
 Write-Host ""
 
 Set-Location $botDir
