@@ -42,21 +42,25 @@ Write-Host "Installing Telethon..." -ForegroundColor Yellow
 & python -m pip install telethon==1.37.0
 Write-Host "Telethon installed!" -ForegroundColor Green
 
-# Set up auto-start on boot
+# Set up auto-start via Startup folder
 Write-Host "Setting up auto-start..." -ForegroundColor Yellow
-$taskName = "TelegramForwarderBot"
-$existingTask = Get-ScheduledTask -TaskName $taskName -ErrorAction SilentlyContinue
+$startupFolder = [System.Environment]::GetFolderPath('CommonStartup')
+$shortcutPath = Join-Path $startupFolder "TelegramBot.lnk"
+$vbsPath = Join-Path $botDir "start_bot.vbs"
+
+# Remove old scheduled task if exists
+$existingTask = Get-ScheduledTask -TaskName "TelegramForwarderBot" -ErrorAction SilentlyContinue
 if ($existingTask) {
-    Unregister-ScheduledTask -TaskName $taskName -Confirm:$false
+    Unregister-ScheduledTask -TaskName "TelegramForwarderBot" -Confirm:$false
+    Write-Host "Removed old scheduled task." -ForegroundColor Yellow
 }
 
-$pythonPath = (Get-Command python).Source
-$action = New-ScheduledTaskAction -Execute $pythonPath -Argument "bot.py" -WorkingDirectory $botDir
-$trigger = New-ScheduledTaskTrigger -AtStartup
-$settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -RestartCount 3 -RestartInterval (New-TimeSpan -Minutes 1)
-$principal = New-ScheduledTaskPrincipal -UserId "SYSTEM" -LogonType ServiceAccount -RunLevel Highest
-
-Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Settings $settings -Principal $principal -Description "Telegram Forwarding Bot"
+# Create shortcut to start_bot.vbs in Startup folder
+$shell = New-Object -ComObject WScript.Shell
+$shortcut = $shell.CreateShortcut($shortcutPath)
+$shortcut.TargetPath = $vbsPath
+$shortcut.WorkingDirectory = $botDir
+$shortcut.Save()
 Write-Host "Auto-start configured!" -ForegroundColor Green
 
 Write-Host ""
