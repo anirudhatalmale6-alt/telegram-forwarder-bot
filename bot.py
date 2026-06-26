@@ -5,7 +5,7 @@ import os
 import json
 import re
 from telethon import TelegramClient, events
-from telethon.tl.types import MessageMediaPhoto, MessageMediaDocument
+from telethon.tl.types import MessageMediaPhoto, MessageMediaDocument, MessageMediaWebPage
 
 logging.basicConfig(
     level=logging.INFO,
@@ -70,6 +70,8 @@ def transform_signal(text):
     else:
         result = re.sub(r'@\w+', '@JasonBlatter', text)
         result = re.sub(r'https?://\S+', '', result)
+        result = re.sub(r'www\.\S+', '', result)
+        result = re.sub(r't\.me/\S+', '', result)
         result = re.sub(r'\n\s*\n\s*\n', '\n\n', result).strip()
         return result
 
@@ -167,15 +169,17 @@ async def main():
             return
 
         try:
-            if event.message.media:
+            if event.message.media and not isinstance(event.message.media, MessageMediaWebPage):
                 logger.info(f"Skipping message {event.message.id} (has media/photo)")
                 return
 
             modified_text = transform_signal(event.message.text or "")
+            logger.info(f"Transformed text: {modified_text[:100]}")
 
             sent = await client.send_message(
                 target_entity,
-                modified_text
+                modified_text,
+                link_preview=False
             )
 
             source_key = str(event.message.id)
