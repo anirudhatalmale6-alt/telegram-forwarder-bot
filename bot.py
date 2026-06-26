@@ -82,7 +82,18 @@ def transform_signal(text):
 
     entry_match = re.search(r'(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)', text)
     if entry_match:
-        entry = f"{entry_match.group(1)} - {entry_match.group(2)}"
+        entry = entry_match.group(1)
+    else:
+        single_num = None
+        for line in lines:
+            if line.lower().startswith(("sell", "buy")):
+                continue
+            nums = re.findall(r'\d+(?:\.\d+)?', line)
+            if nums and not re.search(r'(target|sl)', line, re.IGNORECASE):
+                single_num = nums[0]
+                break
+        if single_num:
+            entry = single_num
 
     sl_match = re.search(r'SL[/\s]*(?:invalid)?\s*(\d+(?:\.\d+)?)', text, re.IGNORECASE)
     if sl_match:
@@ -115,11 +126,11 @@ def transform_signal(text):
         f"\n"
         f"Entry: {entry}\n"
         f"\n"
-        f"SL: {sl}\n"
-        f"\n"
         f"TP1: {tp1}\n"
         f"TP2: {tp2}\n"
-        f"TP3: {tp3}"
+        f"TP3: {tp3}\n"
+        f"\n"
+        f"SL: {sl}"
     )
 
     result = re.sub(r'@\w+', '@JasonBlatter', result)
