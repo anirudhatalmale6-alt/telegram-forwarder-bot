@@ -63,9 +63,9 @@ def transform_signal(text):
 
     text_lower = text.lower()
 
-    if "sell zone now" in text_lower:
+    if "sell zone now" in text_lower or "sell now" in text_lower:
         direction = "Sell"
-    elif "buy zone now" in text_lower:
+    elif "buy zone now" in text_lower or "buy now" in text_lower:
         direction = "Buy"
     else:
         result = re.sub(r'\[([^\]]*)\]\([^)]*\)', r'\1', text)
