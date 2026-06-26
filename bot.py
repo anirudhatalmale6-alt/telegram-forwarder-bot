@@ -28,13 +28,16 @@ config.read(CONFIG_PATH, encoding="utf-8")
 API_ID = config.getint("telegram", "api_id")
 API_HASH = config.get("telegram", "api_hash")
 
-SOURCE_CHANNEL = config.get("channels", "source")
+SOURCE_CHANNELS_RAW = config.get("channels", "source")
 TARGET_CHANNEL = config.get("channels", "target")
 
-try:
-    SOURCE_CHANNEL = int(SOURCE_CHANNEL)
-except ValueError:
-    pass
+SOURCE_CHANNELS = []
+for ch in SOURCE_CHANNELS_RAW.split(","):
+    ch = ch.strip()
+    try:
+        SOURCE_CHANNELS.append(int(ch))
+    except ValueError:
+        SOURCE_CHANNELS.append(ch)
 
 try:
     TARGET_CHANNEL = int(TARGET_CHANNEL)
@@ -125,21 +128,24 @@ client = TelegramClient(
 )
 
 msg_map = load_message_map()
-source_id = None
-target_id = None
+source_ids = set()
 
 
 async def main():
-    global source_id, target_id
+    global source_ids
 
     await client.start()
 
-    source_entity = await client.get_entity(SOURCE_CHANNEL)
     target_entity = await client.get_entity(TARGET_CHANNEL)
-    source_id = source_entity.id
-    target_id = target_entity.id
-    logger.info(f"Source: {source_entity.title} (ID: {source_id})")
-    logger.info(f"Target: {target_entity.title} (ID: {target_id})")
+    logger.info(f"Target: {target_entity.title} (ID: {target_entity.id})")
+
+    for src in SOURCE_CHANNELS:
+        try:
+            entity = await client.get_entity(src)
+            source_ids.add(entity.id)
+            logger.info(f"Source: {entity.title} (ID: {entity.id})")
+        except Exception as e:
+            logger.error(f"Could not resolve source {src}: {e}")
 
     @client.on(events.NewMessage())
     async def forward_handler(event):
@@ -151,7 +157,7 @@ async def main():
         elif hasattr(event.message.peer_id, 'chat_id'):
             chat_id = event.message.peer_id.chat_id
 
-        if chat_id != source_id:
+        if chat_id not in source_ids:
             return
 
         try:
@@ -184,7 +190,7 @@ async def main():
         elif hasattr(event.message.peer_id, 'chat_id'):
             chat_id = event.message.peer_id.chat_id
 
-        if chat_id != source_id:
+        if chat_id not in source_ids:
             return
 
         try:
