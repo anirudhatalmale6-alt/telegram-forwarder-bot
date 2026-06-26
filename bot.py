@@ -74,26 +74,11 @@ def transform_signal(text):
 
     lines = [l.strip() for l in text.strip().split("\n") if l.strip()]
 
-    entry = "open"
+    entry = "4000"
     sl = "open"
     tp1 = "open"
     tp2 = "open"
     tp3 = "open"
-
-    entry_match = re.search(r'(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)', text)
-    if entry_match:
-        entry = entry_match.group(1)
-    else:
-        single_num = None
-        for line in lines:
-            if line.lower().startswith(("sell", "buy")):
-                continue
-            nums = re.findall(r'\d+(?:\.\d+)?', line)
-            if nums and not re.search(r'(target|sl)', line, re.IGNORECASE):
-                single_num = nums[0]
-                break
-        if single_num:
-            entry = single_num
 
     sl_match = re.search(r'SL[/\s]*(?:invalid)?\s*(\d+(?:\.\d+)?)', text, re.IGNORECASE)
     if sl_match:
