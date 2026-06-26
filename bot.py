@@ -21,6 +21,7 @@ CONFIG_PATH = os.path.join(SCRIPT_DIR, "config.ini")
 MAP_PATH = os.path.join(SCRIPT_DIR, "message_map.json")
 
 config = configparser.ConfigParser()
+config.optionxform = str
 config.read(CONFIG_PATH, encoding="utf-8")
 
 API_ID = config.getint("telegram", "api_id")
