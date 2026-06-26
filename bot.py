@@ -68,7 +68,8 @@ def transform_signal(text):
     elif "buy zone now" in text_lower:
         direction = "Buy"
     else:
-        result = re.sub(r'@\w+[)(]*', '@JasonBlatter', text)
+        result = re.sub(r'\[([^\]]*)\]\([^)]*\)', r'\1', text)
+        result = re.sub(r'@\w+', '@JasonBlatter', result)
         result = re.sub(r'https?://\S+', '', result)
         result = re.sub(r'www\.\S+', '', result)
         result = re.sub(r't\.me/\S+', '', result)
