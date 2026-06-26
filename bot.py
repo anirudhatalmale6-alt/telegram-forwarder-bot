@@ -3,6 +3,7 @@ import asyncio
 import logging
 import os
 import json
+import re
 from telethon import TelegramClient, events
 from telethon.tl.types import MessageMediaPhoto, MessageMediaDocument
 
@@ -58,12 +59,36 @@ def save_message_map(msg_map):
         json.dump(msg_map, f)
 
 
-def apply_replacements(text):
+def transform_signal(text):
     if not text:
         return text
-    for original, replacement in REPLACEMENTS.items():
-        text = text.replace(original, replacement)
-    return text
+
+    text_lower = text.lower()
+
+    if "sell zone now" in text_lower:
+        direction = "Sell"
+    elif "buy zone now" in text_lower:
+        direction = "Buy"
+    else:
+        return text
+
+    numbers = re.findall(r'\d+(?:\.\d+)?', text)
+    if numbers:
+        entry = " - ".join(numbers[:2]) if len(numbers) >= 2 else numbers[0]
+    else:
+        entry = "open"
+
+    return (
+        f"{direction} XAUUSD Now\n"
+        f"\n"
+        f"Entry: {entry}\n"
+        f"\n"
+        f"SL: open\n"
+        f"\n"
+        f"TP1: open\n"
+        f"TP2: open\n"
+        f"TP3: open"
+    )
 
 
 client = TelegramClient(
@@ -78,7 +103,7 @@ msg_map = load_message_map()
 @client.on(events.NewMessage(chats=SOURCE_CHANNEL))
 async def forward_handler(event):
     try:
-        modified_text = apply_replacements(event.message.text or "")
+        modified_text = transform_signal(event.message.text or "")
 
         if event.message.media:
             sent = await client.send_message(
@@ -112,7 +137,7 @@ async def edit_handler(event):
             return
 
         target_msg_id = msg_map[source_key]
-        modified_text = apply_replacements(event.message.text or "")
+        modified_text = transform_signal(event.message.text or "")
 
         await client.edit_message(
             TARGET_CHANNEL,
