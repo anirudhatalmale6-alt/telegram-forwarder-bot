@@ -69,6 +69,8 @@ def transform_signal(text):
         direction = "Buy"
     else:
         result = re.sub(r'@\w+', '@JasonBlatter', text)
+        result = re.sub(r'https?://\S+', '', result)
+        result = re.sub(r'\n\s*\n\s*\n', '\n\n', result).strip()
         return result
 
     lines = [l.strip() for l in text.strip().split("\n") if l.strip()]
