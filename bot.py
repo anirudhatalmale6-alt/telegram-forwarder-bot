@@ -110,7 +110,7 @@ def transform_signal(text):
     if len(targets) >= 3:
         tp3 = targets[2]
 
-    return (
+    result = (
         f"{direction} XAUUSD Now\n"
         f"\n"
         f"Entry: {entry}\n"
@@ -121,6 +121,9 @@ def transform_signal(text):
         f"TP2: {tp2}\n"
         f"TP3: {tp3}"
     )
+
+    result = re.sub(r'@\w+', '@JasonBlatter', result)
+    return result
 
 
 client = TelegramClient(
@@ -135,21 +138,16 @@ msg_map = load_message_map()
 @client.on(events.NewMessage(chats=SOURCE_CHANNEL))
 async def forward_handler(event):
     try:
+        if event.message.media:
+            logger.info(f"Skipping message {event.message.id} (has media/photo)")
+            return
+
         modified_text = transform_signal(event.message.text or "")
 
-        if event.message.media:
-            sent = await client.send_message(
-                TARGET_CHANNEL,
-                modified_text,
-                file=event.message.media,
-                formatting_entities=event.message.entities
-            )
-        else:
-            sent = await client.send_message(
-                TARGET_CHANNEL,
-                modified_text,
-                formatting_entities=event.message.entities
-            )
+        sent = await client.send_message(
+            TARGET_CHANNEL,
+            modified_text
+        )
 
         source_key = str(event.message.id)
         msg_map[source_key] = sent.id
