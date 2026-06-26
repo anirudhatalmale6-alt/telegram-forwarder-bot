@@ -63,9 +63,9 @@ def transform_signal(text):
 
     text_lower = text.lower()
 
-    if "sell zone now" in text_lower or "sell now" in text_lower:
+    if text_lower.startswith("sell"):
         direction = "Sell"
-    elif "buy zone now" in text_lower or "buy now" in text_lower:
+    elif text_lower.startswith("buy"):
         direction = "Buy"
     else:
         result = re.sub(r'\[([^\]]*)\]\([^)]*\)', r'\1', text)
@@ -78,7 +78,7 @@ def transform_signal(text):
 
     lines = [l.strip() for l in text.strip().split("\n") if l.strip()]
 
-    entry = "open"
+    entry = "4000"
     sl = "open"
     tp1 = "open"
     tp2 = "open"
