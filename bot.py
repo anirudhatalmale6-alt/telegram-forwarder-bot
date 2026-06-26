@@ -72,22 +72,54 @@ def transform_signal(text):
     else:
         return text
 
-    numbers = re.findall(r'\d+(?:\.\d+)?', text)
-    if numbers:
-        entry = " - ".join(numbers[:2]) if len(numbers) >= 2 else numbers[0]
-    else:
-        entry = "open"
+    lines = [l.strip() for l in text.strip().split("\n") if l.strip()]
+
+    entry = "open"
+    sl = "open"
+    tp1 = "open"
+    tp2 = "open"
+    tp3 = "open"
+
+    entry_match = re.search(r'(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)', text)
+    if entry_match:
+        entry = f"{entry_match.group(1)} - {entry_match.group(2)}"
+
+    sl_match = re.search(r'SL[/\s]*(?:invalid)?\s*(\d+(?:\.\d+)?)', text, re.IGNORECASE)
+    if sl_match:
+        sl = sl_match.group(1)
+
+    targets = []
+    in_targets = False
+    for line in lines:
+        if line.lower().startswith("target"):
+            in_targets = True
+            nums = re.findall(r'\d+(?:\.\d+)?', line)
+            targets.extend(nums)
+            continue
+        if in_targets:
+            nums = re.findall(r'\d+(?:\.\d+)?', line)
+            if nums and not re.search(r'SL', line, re.IGNORECASE):
+                targets.extend(nums)
+            else:
+                in_targets = False
+
+    if len(targets) >= 1:
+        tp1 = targets[0]
+    if len(targets) >= 2:
+        tp2 = targets[1]
+    if len(targets) >= 3:
+        tp3 = targets[2]
 
     return (
         f"{direction} XAUUSD Now\n"
         f"\n"
         f"Entry: {entry}\n"
         f"\n"
-        f"SL: open\n"
+        f"SL: {sl}\n"
         f"\n"
-        f"TP1: open\n"
-        f"TP2: open\n"
-        f"TP3: open"
+        f"TP1: {tp1}\n"
+        f"TP2: {tp2}\n"
+        f"TP3: {tp3}"
     )
 
 
