@@ -176,6 +176,10 @@ async def main():
             modified_text = transform_signal(event.message.text or "")
             logger.info(f"Transformed text: {modified_text[:100]}")
 
+            if not modified_text.strip():
+                logger.info(f"Skipping message {event.message.id} (empty after transformation)")
+                return
+
             sent = await client.send_message(
                 target_entity,
                 modified_text,
