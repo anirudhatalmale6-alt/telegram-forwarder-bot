@@ -73,11 +73,15 @@ def transform_signal(text):
 
     lines = [l.strip() for l in text.strip().split("\n") if l.strip()]
 
-    entry = "4000"
+    entry = "open"
     sl = "open"
     tp1 = "open"
     tp2 = "open"
     tp3 = "open"
+
+    entry_match = re.search(r'(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)', text)
+    if entry_match:
+        entry = entry_match.group(1)
 
     sl_match = re.search(r'SL[/\s]*(?:invalid)?\s*(\d+(?:\.\d+)?)', text, re.IGNORECASE)
     if sl_match:
