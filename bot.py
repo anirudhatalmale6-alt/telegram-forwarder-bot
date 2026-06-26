@@ -31,11 +31,6 @@ API_HASH = config.get("telegram", "api_hash")
 SOURCE_CHANNEL = config.get("channels", "source")
 TARGET_CHANNEL = config.get("channels", "target")
 
-REPLACEMENTS = {}
-if config.has_section("text_replacements"):
-    for key, value in config.items("text_replacements"):
-        REPLACEMENTS[key] = value
-
 try:
     SOURCE_CHANNEL = int(SOURCE_CHANNEL)
 except ValueError:
@@ -70,7 +65,8 @@ def transform_signal(text):
     elif "buy zone now" in text_lower:
         direction = "Buy"
     else:
-        return text
+        result = re.sub(r'@\w+', '@JasonBlatter', text)
+        return result
 
     lines = [l.strip() for l in text.strip().split("\n") if l.strip()]
 
@@ -129,64 +125,88 @@ client = TelegramClient(
 )
 
 msg_map = load_message_map()
-
-
-@client.on(events.NewMessage(chats=SOURCE_CHANNEL))
-async def forward_handler(event):
-    try:
-        if event.message.media:
-            logger.info(f"Skipping message {event.message.id} (has media/photo)")
-            return
-
-        modified_text = transform_signal(event.message.text or "")
-
-        sent = await client.send_message(
-            TARGET_CHANNEL,
-            modified_text
-        )
-
-        source_key = str(event.message.id)
-        msg_map[source_key] = sent.id
-        save_message_map(msg_map)
-        logger.info(f"Forwarded message {event.message.id} -> {sent.id}")
-
-    except Exception as e:
-        logger.error(f"Error forwarding message {event.message.id}: {e}")
-
-
-@client.on(events.MessageEdited(chats=SOURCE_CHANNEL))
-async def edit_handler(event):
-    try:
-        source_key = str(event.message.id)
-        if source_key not in msg_map:
-            logger.warning(f"Edit for unknown message {event.message.id}, skipping")
-            return
-
-        target_msg_id = msg_map[source_key]
-        modified_text = transform_signal(event.message.text or "")
-
-        await client.edit_message(
-            TARGET_CHANNEL,
-            target_msg_id,
-            modified_text,
-            formatting_entities=event.message.entities
-        )
-        logger.info(f"Synced edit for message {event.message.id} -> {target_msg_id}")
-
-    except Exception as e:
-        logger.error(f"Error syncing edit for message {event.message.id}: {e}")
+source_id = None
+target_id = None
 
 
 async def main():
+    global source_id, target_id
+
     await client.start()
 
     source_entity = await client.get_entity(SOURCE_CHANNEL)
     target_entity = await client.get_entity(TARGET_CHANNEL)
-    logger.info(f"Source: {source_entity.title} (ID: {source_entity.id})")
-    logger.info(f"Target: {target_entity.title} (ID: {target_entity.id})")
-    logger.info(f"Text replacements: {REPLACEMENTS}")
-    logger.info("Bot is running... Press Ctrl+C to stop.")
+    source_id = source_entity.id
+    target_id = target_entity.id
+    logger.info(f"Source: {source_entity.title} (ID: {source_id})")
+    logger.info(f"Target: {target_entity.title} (ID: {target_id})")
 
+    @client.on(events.NewMessage())
+    async def forward_handler(event):
+        if not event.message.peer_id:
+            return
+        chat_id = None
+        if hasattr(event.message.peer_id, 'channel_id'):
+            chat_id = event.message.peer_id.channel_id
+        elif hasattr(event.message.peer_id, 'chat_id'):
+            chat_id = event.message.peer_id.chat_id
+
+        if chat_id != source_id:
+            return
+
+        try:
+            if event.message.media:
+                logger.info(f"Skipping message {event.message.id} (has media/photo)")
+                return
+
+            modified_text = transform_signal(event.message.text or "")
+
+            sent = await client.send_message(
+                target_entity,
+                modified_text
+            )
+
+            source_key = str(event.message.id)
+            msg_map[source_key] = sent.id
+            save_message_map(msg_map)
+            logger.info(f"Forwarded message {event.message.id} -> {sent.id}")
+
+        except Exception as e:
+            logger.error(f"Error forwarding message {event.message.id}: {e}")
+
+    @client.on(events.MessageEdited())
+    async def edit_handler(event):
+        if not event.message.peer_id:
+            return
+        chat_id = None
+        if hasattr(event.message.peer_id, 'channel_id'):
+            chat_id = event.message.peer_id.channel_id
+        elif hasattr(event.message.peer_id, 'chat_id'):
+            chat_id = event.message.peer_id.chat_id
+
+        if chat_id != source_id:
+            return
+
+        try:
+            source_key = str(event.message.id)
+            if source_key not in msg_map:
+                logger.warning(f"Edit for unknown message {event.message.id}, skipping")
+                return
+
+            target_msg_id = msg_map[source_key]
+            modified_text = transform_signal(event.message.text or "")
+
+            await client.edit_message(
+                target_entity,
+                target_msg_id,
+                modified_text
+            )
+            logger.info(f"Synced edit for message {event.message.id} -> {target_msg_id}")
+
+        except Exception as e:
+            logger.error(f"Error syncing edit for message {event.message.id}: {e}")
+
+    logger.info("Bot is running... Press Ctrl+C to stop.")
     await client.run_until_disconnected()
 
 
