@@ -4,8 +4,8 @@ import logging
 import os
 import json
 import re
-from telethon import TelegramClient, events
-from telethon.tl.types import MessageMediaPhoto, MessageMediaDocument, MessageMediaWebPage
+from telethon import TelegramClient
+from telethon.tl.types import MessageMediaWebPage
 
 logging.basicConfig(
     level=logging.INFO,
@@ -52,9 +52,9 @@ def load_message_map():
     return {}
 
 
-def save_message_map(msg_map):
+def save_message_map(data):
     with open(MAP_PATH, "w") as f:
-        json.dump(msg_map, f)
+        json.dump(data, f)
 
 
 def transform_signal(text):
@@ -137,17 +137,97 @@ client = TelegramClient(
 )
 
 msg_map = load_message_map()
-source_ids = set()
+msg_texts = {}
+source_entities = []
+target_entity = None
+last_seen = {}
+
+
+async def forward_message(msg):
+    source_key = str(msg.id)
+
+    if msg.media and not isinstance(msg.media, MessageMediaWebPage):
+        logger.info(f"Skipping message {msg.id} (has media)")
+        return
+
+    modified_text = transform_signal(msg.text or "")
+    if not modified_text.strip():
+        logger.info(f"Skipping message {msg.id} (empty after transformation)")
+        return
+
+    reply_to_target = None
+    if msg.reply_to and msg.reply_to.reply_to_msg_id:
+        reply_source_key = str(msg.reply_to.reply_to_msg_id)
+        if reply_source_key in msg_map:
+            reply_to_target = msg_map[reply_source_key]
+            logger.info(f"Replying to target message {reply_to_target}")
+
+    sent = await client.send_message(
+        target_entity,
+        modified_text,
+        reply_to=reply_to_target,
+        link_preview=False
+    )
+
+    msg_map[source_key] = sent.id
+    msg_texts[source_key] = msg.text
+    save_message_map(msg_map)
+    logger.info(f"Forwarded message {msg.id} -> {sent.id}")
+
+
+async def sync_edit(msg):
+    source_key = str(msg.id)
+    target_msg_id = msg_map[source_key]
+
+    modified_text = transform_signal(msg.text or "")
+    if not modified_text.strip():
+        return
+
+    await client.edit_message(target_entity, target_msg_id, modified_text)
+    msg_texts[source_key] = msg.text
+    logger.info(f"Synced edit for message {msg.id} -> {target_msg_id}")
+
+
+async def poll_loop():
+    while True:
+        await asyncio.sleep(2)
+        for entity in source_entities:
+            try:
+                messages = []
+                async for msg in client.iter_messages(entity, limit=5):
+                    messages.append(msg)
+
+                for msg in reversed(messages):
+                    source_key = str(msg.id)
+
+                    if msg.id <= last_seen.get(entity.id, 0):
+                        if source_key in msg_map and source_key in msg_texts:
+                            if msg_texts[source_key] != msg.text:
+                                try:
+                                    await sync_edit(msg)
+                                except Exception as e:
+                                    logger.error(f"Error syncing edit: {e}")
+                        continue
+
+                    last_seen[entity.id] = msg.id
+
+                    if source_key in msg_map:
+                        msg_texts[source_key] = msg.text
+                        continue
+
+                    try:
+                        await forward_message(msg)
+                    except Exception as e:
+                        logger.error(f"Error forwarding message {msg.id}: {e}")
+
+            except Exception as e:
+                logger.error(f"Error polling source {entity.id}: {e}")
 
 
 async def main():
-    global source_ids
+    global target_entity
 
     await client.start()
-
-    logger.info("Syncing channel states...")
-    await client.get_dialogs(limit=30)
-    logger.info("Sync complete.")
 
     target_entity = await client.get_entity(TARGET_CHANNEL)
     logger.info(f"Target: {target_entity.title} (ID: {target_entity.id})")
@@ -155,103 +235,21 @@ async def main():
     for src in SOURCE_CHANNELS:
         try:
             entity = await client.get_entity(src)
-            source_ids.add(entity.id)
+            source_entities.append(entity)
             logger.info(f"Source: {entity.title} (ID: {entity.id})")
         except Exception as e:
             logger.error(f"Could not resolve source {src}: {e}")
 
-    @client.on(events.NewMessage())
-    async def forward_handler(event):
-        if not event.message.peer_id:
-            return
-        chat_id = None
-        if hasattr(event.message.peer_id, 'channel_id'):
-            chat_id = event.message.peer_id.channel_id
-        elif hasattr(event.message.peer_id, 'chat_id'):
-            chat_id = event.message.peer_id.chat_id
-
-        if chat_id not in source_ids:
-            return
-
+    for entity in source_entities:
         try:
-            if event.message.media and not isinstance(event.message.media, MessageMediaWebPage):
-                logger.info(f"Skipping message {event.message.id} (has media/photo)")
-                return
-
-            modified_text = transform_signal(event.message.text or "")
-            logger.info(f"Transformed text: {modified_text[:100]}")
-
-            if not modified_text.strip():
-                logger.info(f"Skipping message {event.message.id} (empty after transformation)")
-                return
-
-            reply_to_target = None
-            if event.message.reply_to and event.message.reply_to.reply_to_msg_id:
-                reply_source_key = str(event.message.reply_to.reply_to_msg_id)
-                if reply_source_key in msg_map:
-                    reply_to_target = msg_map[reply_source_key]
-                    logger.info(f"Replying to target message {reply_to_target}")
-
-            sent = await client.send_message(
-                target_entity,
-                modified_text,
-                reply_to=reply_to_target,
-                link_preview=False
-            )
-
-            source_key = str(event.message.id)
-            msg_map[source_key] = sent.id
-            save_message_map(msg_map)
-            logger.info(f"Forwarded message {event.message.id} -> {sent.id}")
-
+            async for msg in client.iter_messages(entity, limit=1):
+                last_seen[entity.id] = msg.id
+                logger.info(f"  Starting from message ID: {msg.id}")
         except Exception as e:
-            logger.error(f"Error forwarding message {event.message.id}: {e}")
+            logger.error(f"Error initializing source {entity.id}: {e}")
 
-    @client.on(events.MessageEdited())
-    async def edit_handler(event):
-        if not event.message.peer_id:
-            return
-        chat_id = None
-        if hasattr(event.message.peer_id, 'channel_id'):
-            chat_id = event.message.peer_id.channel_id
-        elif hasattr(event.message.peer_id, 'chat_id'):
-            chat_id = event.message.peer_id.chat_id
-
-        if chat_id not in source_ids:
-            return
-
-        try:
-            source_key = str(event.message.id)
-
-            # Wait for forward handler to finish if edit arrives before initial forward
-            if source_key not in msg_map:
-                for _ in range(10):
-                    await asyncio.sleep(1)
-                    if source_key in msg_map:
-                        break
-                else:
-                    logger.warning(f"Edit for unknown message {event.message.id}, skipping")
-                    return
-
-            target_msg_id = msg_map[source_key]
-            modified_text = transform_signal(event.message.text or "")
-
-            if not modified_text.strip():
-                logger.info(f"Skipping edit for message {event.message.id} (empty after transformation)")
-                return
-
-            await client.edit_message(
-                target_entity,
-                target_msg_id,
-                modified_text
-            )
-            logger.info(f"Synced edit for message {event.message.id} -> {target_msg_id}")
-
-        except Exception as e:
-            logger.error(f"Error syncing edit for message {event.message.id}: {e}")
-
-    logger.info("Bot is running... Press Ctrl+C to stop.")
-    await client.run_until_disconnected()
+    logger.info("Bot is running (polling mode)... Press Ctrl+C to stop.")
+    await poll_loop()
 
 
 if __name__ == "__main__":
