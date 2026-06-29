@@ -146,8 +146,7 @@ async def main():
     await client.start()
 
     logger.info("Syncing channel states...")
-    async for dialog in client.iter_dialogs():
-        pass
+    await client.get_dialogs(limit=30)
     logger.info("Sync complete.")
 
     target_entity = await client.get_entity(TARGET_CHANNEL)
