@@ -181,9 +181,17 @@ async def main():
                 logger.info(f"Skipping message {event.message.id} (empty after transformation)")
                 return
 
+            reply_to_target = None
+            if event.message.reply_to and event.message.reply_to.reply_to_msg_id:
+                reply_source_key = str(event.message.reply_to.reply_to_msg_id)
+                if reply_source_key in msg_map:
+                    reply_to_target = msg_map[reply_source_key]
+                    logger.info(f"Replying to target message {reply_to_target}")
+
             sent = await client.send_message(
                 target_entity,
                 modified_text,
+                reply_to=reply_to_target,
                 link_preview=False
             )
 
