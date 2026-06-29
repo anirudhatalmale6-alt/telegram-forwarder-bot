@@ -145,6 +145,12 @@ async def main():
 
     await client.start()
 
+    # Load all dialogs to ensure Telethon receives updates for all channels
+    logger.info("Loading dialogs to sync channel states...")
+    async for dialog in client.iter_dialogs():
+        pass
+    logger.info("Dialogs loaded.")
+
     target_entity = await client.get_entity(TARGET_CHANNEL)
     logger.info(f"Target: {target_entity.title} (ID: {target_entity.id})")
 
