@@ -223,12 +223,23 @@ async def main():
 
         try:
             source_key = str(event.message.id)
+
+            # Wait for forward handler to finish if edit arrives before initial forward
             if source_key not in msg_map:
-                logger.warning(f"Edit for unknown message {event.message.id}, skipping")
-                return
+                for _ in range(10):
+                    await asyncio.sleep(1)
+                    if source_key in msg_map:
+                        break
+                else:
+                    logger.warning(f"Edit for unknown message {event.message.id}, skipping")
+                    return
 
             target_msg_id = msg_map[source_key]
             modified_text = transform_signal(event.message.text or "")
+
+            if not modified_text.strip():
+                logger.info(f"Skipping edit for message {event.message.id} (empty after transformation)")
+                return
 
             await client.edit_message(
                 target_entity,
