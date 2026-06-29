@@ -145,12 +145,6 @@ async def main():
 
     await client.start()
 
-    # Load all dialogs to ensure Telethon receives updates for all channels
-    logger.info("Loading dialogs to sync channel states...")
-    async for dialog in client.iter_dialogs():
-        pass
-    logger.info("Dialogs loaded.")
-
     target_entity = await client.get_entity(TARGET_CHANNEL)
     logger.info(f"Target: {target_entity.title} (ID: {target_entity.id})")
 
@@ -158,7 +152,10 @@ async def main():
         try:
             entity = await client.get_entity(src)
             source_ids.add(entity.id)
-            logger.info(f"Source: {entity.title} (ID: {entity.id})")
+            # Fetch latest message to force Telethon to sync update state for this channel
+            async for _ in client.iter_messages(entity, limit=1):
+                pass
+            logger.info(f"Source: {entity.title} (ID: {entity.id}) - synced")
         except Exception as e:
             logger.error(f"Could not resolve source {src}: {e}")
 
