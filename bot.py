@@ -80,9 +80,9 @@ def transform_signal(text):
 
     entry = "4000"
     sl = "open"
-    tp1 = "open"
-    tp2 = "open"
-    tp3 = "open"
+    tp1 = "10000"
+    tp2 = "10000"
+    tp3 = "10000"
 
     entry_match = re.search(r'(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)', text)
     if entry_match:
