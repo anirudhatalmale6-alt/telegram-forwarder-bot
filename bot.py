@@ -79,7 +79,7 @@ def transform_signal(text):
     lines = [l.strip() for l in text.strip().split("\n") if l.strip()]
 
     entry = "4000"
-    sl = "open"
+    sl = "1000"
     tp1 = "10000"
     tp2 = "10000"
     tp3 = "10000"
